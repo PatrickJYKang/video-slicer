@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# App data
+uploads/
+outputs/
+
+# Node / front-end (not used now, but keep tidy)
+node_modules/
+
+# Python packaging
+build/
+dist/
+*.egg-info/

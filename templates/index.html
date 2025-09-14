@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Video Slicer</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 3rem; max-width: 900px; font-size: 18px; line-height: 1.5; }
+  header { font-size: 2rem; font-weight: 700; margin-bottom: 1.5rem; }
+  form { display: grid; gap: 1rem; margin: 1.5rem 0 2.5rem; }
+  label { font-size: 1.05rem; font-weight: 600; }
+  input, button { padding: 0.9rem 1rem; border: 1px solid #bbb; border-radius: .75rem; font-size: 1rem; }
+  button { cursor: pointer; border: none; background: #1f6feb; color: #fff; font-weight: 600; padding: 1rem 1.25rem; border-radius: .85rem; }
+  .muted { color: #666; font-size: .95rem; }
+  .bar { width: 100%; height: 16px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+  .fill { height: 100%; background: #22c55e; width: 0%; transition: width .1s linear; }
+  .row { display: flex; align-items: center; justify-content: space-between; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1rem; }
+  .card { border: 1px solid #ddd; border-radius: 1rem; padding: 1.25rem; margin-top: 1.25rem; }
+  a { color: #1f6feb; text-decoration: none; }
+  .dropbox { border: 2px dashed #9aa4b2; border-radius: 1rem; padding: 2rem; background: rgba(0,0,0,0.02); }
+  .dropbox:hover { border-color: #6b7280; }
+  input[type="file"] { width: 100%; font-size: 1rem; }
+  input[type="file"]::file-selector-button { padding: .9rem 1rem; border-radius: .75rem; border: none; background: #e5e7eb; cursor: pointer; margin-right: 1rem; font-size: 1rem; }
+  .btn { display: inline-block; background: #1f6feb; color: #fff; padding: 0.8rem 1rem; border-radius: .85rem; font-weight: 600; }
+</style>
+<header>Video Slicer</header>
+
+{% if job %}
+<div class="card">
+  <div class="row">
+    <div class="mono">Job: {{ job_id }}</div>
+    <div class="muted">{{ job['status'] }}</div>
+  </div>
+  <div class="bar" style="margin:.75rem 0;"><div id="fill" class="fill"></div></div>
+  <div class="row mono">
+    <div id="pct">0%</div>
+    <div id="msg"></div>
+  </div>
+  <div style="margin-top:.75rem;" class="muted">Input: {{ job['input_path'] }}</div>
+  <div class="muted">Output pattern: {{ job['out_pattern'] }}</div>
+  <div id="files" style="margin-top:.75rem;"></div>
+</div>
+
+<script>
+  const fill = document.getElementById("fill");
+  const pct = document.getElementById("pct");
+  const msg = document.getElementById("msg");
+  const files = document.getElementById("files");
+  const es = new EventSource("{{ url_for('progress_stream', job_id=job_id) }}");
+  es.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    fill.style.width = (d.pct * 100).toFixed(2) + "%";
+    pct.textContent = (d.pct * 100).toFixed(2) + "%";
+    msg.textContent = d.msg || "";
+    if (d.status === "done" || d.status === "error") {
+      es.close();
+      if (d.files && d.files.length) {
+        const list = d.files.map(f => `<div class="mono"><a href="{{ url_for('download', job_id=job_id) }}?f=${encodeURIComponent(f)}">${f}</a></div>`).join("");
+        const allBtn = d.status === "done" ? `<div style=\"margin-top: .85rem;\"><a class=\"btn\" href=\"{{ url_for('download_all', job_id=job_id) }}\">Download all (.zip)</a></div>` : "";
+        files.innerHTML = "<div><strong>Files:</strong></div>" + list + allBtn;
+      }
+    }
+  };
+</script>
+
+<p style="margin-top:1.5rem;"><a href="{{ url_for('index') }}">Start another job</a></p>
+{% else %}
+
+<form action="{{ url_for('start') }}" method="post" enctype="multipart/form-data">
+  <div>
+    <label>Upload video file</label>
+    <div class="dropbox">
+      <input type="file" name="file">
+    </div>
+  </div>
+  <div>
+    <label>Chunk size (MB)</label>
+    <input name="chunk_mb" type="number" min="1" value="500" required>
+  </div>
+  <div>
+    <label>Output pattern (optional)</label>
+    <input name="pattern" placeholder="e.g. out_part%03d.mp4">
+  </div>
+  <button type="submit">Slice</button>
+  <div class="muted">No re-encode. Chunks stay playable. Keyframe-aligned. Progress shown live.</div>
+</form>
+
+{% if job_ids %}
+  <div class="card">
+    <div><strong>Recent jobs</strong></div>
+    {% for j in job_ids %}
+      <div class="row mono" style="margin-top:.35rem;">
+        <a href="{{ url_for('job', job_id=j) }}">{{ j }}</a>
+        <span class="muted">{{ jobs[j]['status'] }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% endif %}
